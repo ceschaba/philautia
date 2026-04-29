@@ -1,203 +1,252 @@
-// ── LocalStorage DB ──
-const DB = {
-  get: k => JSON.parse(localStorage.getItem('ph_' + k) || '[]'),
-  set: (k, v) => localStorage.setItem('ph_' + k, JSON.stringify(v)),
+// ╔══════════════════════════════════════════════════╗
+// ║  PHILAUTIA — Firebase Firestore                  ║
+// ║  Proyecto: philautia-4caf6                       ║
+// ╚══════════════════════════════════════════════════╝
+
+// Usar CDN con versión compatible
+const { initializeApp }    = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+const { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, onSnapshot }
+  = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+// ── Credenciales ──
+const firebaseConfig = {
+  apiKey:            "AIzaSyCQow7IqOHttFAcVFvpbQetmyh3TPs0M6U",
+  authDomain:        "philautia-4caf6.firebaseapp.com",
+  projectId:         "philautia-4caf6",
+  storageBucket:     "philautia-4caf6.firebasestorage.app",
+  messagingSenderId: "658981945322",
+  appId:             "1:658981945322:web:9563f58c2644a180907c93"
 };
 
-// ── Toast ──
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+const COL_USERS      = "usuarios";
+const COL_ROUTINES   = "rutinas";
+const COL_ATTENDANCE = "asistencia";
+
+// ════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════
 function toast(msg) {
-  const t = document.getElementById('toast');
+  const t = document.getElementById("toast");
   t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2800);
 }
 
-// ── Smooth scroll ──
-function goTo(id) {
-  document.querySelector(id).scrollIntoView({ behavior: 'smooth' });
-}
+// ════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ════════════════════════════════════════════════════
+window.goTo = function(id) {
+  document.querySelector(id).scrollIntoView({ behavior: "smooth" });
+};
 
-// ── Navbar scroll effect ──
-window.addEventListener('scroll', () => {
-  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
+window.addEventListener("scroll", () => {
+  document.getElementById("navbar").classList.toggle("scrolled", window.scrollY > 40);
 });
 
-// ── Scroll reveal ──
 const observer = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("visible"); });
 }, { threshold: 0.12 });
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+document.querySelectorAll(".reveal").forEach(el => observer.observe(el));
 
-// ── Tab switching ──
-function switchTab(name) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  event.target.classList.add('active');
-  if (name === 'asistencia') populateSelects();
-}
+// ════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════
+window.switchTab = function(name) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  event.target.classList.add("active");
+  if (name === "asistencia") populateSelects();
+};
 
-// ── Stats ──
+// ════════════════════════════════════════════════════
+// STATS
+// ════════════════════════════════════════════════════
 function updateStats() {
-  const users    = DB.get('users');
-  const routines = DB.get('routines');
-  const att      = DB.get('attendance');
-  const today    = new Date().toISOString().slice(0, 10);
-  document.getElementById('statUsers').textContent      = users.length;
-  document.getElementById('statRoutines').textContent   = routines.length;
-  document.getElementById('statAttendance').textContent = att.filter(a => a.fecha === today).length;
-  document.getElementById('statActive').textContent     = users.filter(u => u.estado === 'Activo').length;
-}
-
-// ────────────────────────────────────────────────────
-// USUARIOS
-// ────────────────────────────────────────────────────
-function saveUser() {
-  const nombre = document.getElementById('u-nombre').value.trim();
-  const correo = document.getElementById('u-correo').value.trim();
-  if (!nombre || !correo) { toast('⚠️ Nombre y correo son requeridos'); return; }
-  const users = DB.get('users');
-  users.push({
-    id:        Date.now(),
-    nombre,
-    correo,
-    tel:       document.getElementById('u-tel').value,
-    membresia: document.getElementById('u-membresia').value,
-    estado:    document.getElementById('u-estado').value,
-    fecha:     document.getElementById('u-fecha').value || new Date().toISOString().slice(0, 10),
+  const today = new Date().toISOString().slice(0, 10);
+  onSnapshot(collection(db, COL_USERS), snap => {
+    document.getElementById("statUsers").textContent  = snap.size;
+    document.getElementById("statActive").textContent = snap.docs.filter(d => d.data().estado === "Activo").length;
   });
-  DB.set('users', users);
-  ['u-nombre', 'u-correo', 'u-tel', 'u-fecha'].forEach(id => document.getElementById(id).value = '');
-  renderUsers(); updateStats(); toast('✅ Usuario registrado exitosamente');
+  onSnapshot(collection(db, COL_ROUTINES), snap => {
+    document.getElementById("statRoutines").textContent = snap.size;
+  });
+  onSnapshot(collection(db, COL_ATTENDANCE), snap => {
+    document.getElementById("statAttendance").textContent = snap.docs.filter(d => d.data().fecha === today).length;
+  });
 }
 
-function deleteUser(id) {
-  if (!confirm('¿Eliminar este usuario?')) return;
-  DB.set('users', DB.get('users').filter(u => u.id !== id));
-  renderUsers(); updateStats(); toast('🗑️ Usuario eliminado');
-}
+// ════════════════════════════════════════════════════
+// USUARIOS
+// ════════════════════════════════════════════════════
+window.saveUser = async function() {
+  const nombre = document.getElementById("u-nombre").value.trim();
+  const correo = document.getElementById("u-correo").value.trim();
+  if (!nombre || !correo) { toast("⚠️ Nombre y correo son requeridos"); return; }
+  try {
+    await addDoc(collection(db, COL_USERS), {
+      nombre, correo,
+      tel:       document.getElementById("u-tel").value,
+      membresia: document.getElementById("u-membresia").value,
+      estado:    document.getElementById("u-estado").value,
+      fecha:     document.getElementById("u-fecha").value || new Date().toISOString().slice(0, 10),
+      creadoEn:  new Date().toISOString(),
+    });
+    ["u-nombre","u-correo","u-tel","u-fecha"].forEach(id => document.getElementById(id).value = "");
+    toast("✅ Usuario registrado exitosamente");
+    loadUsers();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
 
-function renderUsers() {
-  const q = document.getElementById('searchUser').value.toLowerCase();
-  const users = DB.get('users').filter(u =>
-    u.nombre.toLowerCase().includes(q) || u.correo.toLowerCase().includes(q)
-  );
-  const tb = document.getElementById('usersTable');
-  tb.innerHTML = users.length
-    ? users.map(u => `
+window.deleteUser = async function(id) {
+  if (!confirm("¿Eliminar este usuario?")) return;
+  try {
+    await deleteDoc(doc(db, COL_USERS, id));
+    toast("🗑️ Usuario eliminado");
+    loadUsers();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
+
+async function loadUsers() {
+  const q    = document.getElementById("searchUser").value.toLowerCase();
+  const snap = await getDocs(query(collection(db, COL_USERS), orderBy("creadoEn", "desc")));
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => u.nombre.toLowerCase().includes(q) || u.correo.toLowerCase().includes(q));
+  document.getElementById("usersTable").innerHTML = list.length
+    ? list.map(u => `
         <tr>
           <td><strong>${u.nombre}</strong></td>
           <td>${u.correo}</td>
-          <td>${u.tel || '—'}</td>
+          <td>${u.tel || "—"}</td>
           <td>${u.membresia}</td>
-          <td><span class="badge badge-${u.estado === 'Activo' ? 'active' : 'inactive'}">${u.estado}</span></td>
+          <td><span class="badge badge-${u.estado === "Activo" ? "active" : "inactive"}">${u.estado}</span></td>
           <td>${u.fecha}</td>
-          <td><button class="btn-del" onclick="deleteUser(${u.id})">Eliminar</button></td>
-        </tr>`).join('')
-    : '<tr><td colspan="7" style="text-align:center;opacity:0.4;padding:2rem;">Sin usuarios registrados</td></tr>';
+          <td><button class="btn-del" onclick="deleteUser('${u.id}')">Eliminar</button></td>
+        </tr>`).join("")
+    : `<tr><td colspan="7" style="text-align:center;opacity:0.4;padding:2rem;">Sin usuarios registrados</td></tr>`;
 }
+window.loadUsers = loadUsers;
 
-// ────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════
 // RUTINAS
-// ────────────────────────────────────────────────────
-function saveRoutine() {
-  const nombre = document.getElementById('r-nombre').value.trim();
-  if (!nombre) { toast('⚠️ El nombre de la rutina es requerido'); return; }
-  const routines = DB.get('routines');
-  routines.push({
-    id:         Date.now(),
-    nombre,
-    instructor: document.getElementById('r-instructor').value,
-    dia:        document.getElementById('r-dia').value,
-    hora:       document.getElementById('r-hora').value,
-    duracion:   document.getElementById('r-duracion').value,
-    nivel:      document.getElementById('r-nivel').value,
-    desc:       document.getElementById('r-desc').value,
-  });
-  DB.set('routines', routines);
-  ['r-nombre', 'r-instructor', 'r-duracion', 'r-desc'].forEach(id => document.getElementById(id).value = '');
-  renderRoutines(); updateStats(); toast('✅ Rutina guardada');
-}
+// ════════════════════════════════════════════════════
+window.saveRoutine = async function() {
+  const nombre = document.getElementById("r-nombre").value.trim();
+  if (!nombre) { toast("⚠️ El nombre de la rutina es requerido"); return; }
+  try {
+    await addDoc(collection(db, COL_ROUTINES), {
+      nombre,
+      instructor: document.getElementById("r-instructor").value,
+      dia:        document.getElementById("r-dia").value,
+      hora:       document.getElementById("r-hora").value,
+      duracion:   document.getElementById("r-duracion").value,
+      nivel:      document.getElementById("r-nivel").value,
+      desc:       document.getElementById("r-desc").value,
+      creadoEn:   new Date().toISOString(),
+    });
+    ["r-nombre","r-instructor","r-duracion","r-desc"].forEach(id => document.getElementById(id).value = "");
+    toast("✅ Rutina guardada");
+    loadRoutines();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
 
-function deleteRoutine(id) {
-  if (!confirm('¿Eliminar esta rutina?')) return;
-  DB.set('routines', DB.get('routines').filter(r => r.id !== id));
-  renderRoutines(); updateStats(); toast('🗑️ Rutina eliminada');
-}
+window.deleteRoutine = async function(id) {
+  if (!confirm("¿Eliminar esta rutina?")) return;
+  try {
+    await deleteDoc(doc(db, COL_ROUTINES, id));
+    toast("🗑️ Rutina eliminada");
+    loadRoutines();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
 
-function renderRoutines() {
-  const routines = DB.get('routines');
-  const tb = document.getElementById('routinesTable');
-  tb.innerHTML = routines.length
-    ? routines.map(r => `
+async function loadRoutines() {
+  const snap = await getDocs(query(collection(db, COL_ROUTINES), orderBy("creadoEn", "desc")));
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  document.getElementById("routinesTable").innerHTML = list.length
+    ? list.map(r => `
         <tr>
           <td><strong>${r.nombre}</strong></td>
-          <td>${r.instructor || '—'}</td>
+          <td>${r.instructor || "—"}</td>
           <td>${r.dia}</td>
           <td>${r.hora}</td>
-          <td>${r.duracion || '—'} min</td>
+          <td>${r.duracion || "—"} min</td>
           <td><span class="badge badge-nivel">${r.nivel}</span></td>
-          <td>${r.desc || '—'}</td>
-          <td><button class="btn-del" onclick="deleteRoutine(${r.id})">Eliminar</button></td>
-        </tr>`).join('')
-    : '<tr><td colspan="8" style="text-align:center;opacity:0.4;padding:2rem;">Sin rutinas registradas</td></tr>';
+          <td>${r.desc || "—"}</td>
+          <td><button class="btn-del" onclick="deleteRoutine('${r.id}')">Eliminar</button></td>
+        </tr>`).join("")
+    : `<tr><td colspan="8" style="text-align:center;opacity:0.4;padding:2rem;">Sin rutinas registradas</td></tr>`;
 }
+window.loadRoutines = loadRoutines;
 
-// ────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════
 // ASISTENCIA
-// ────────────────────────────────────────────────────
-function populateSelects() {
-  const us = DB.get('users');
-  const rs = DB.get('routines');
-  const au = document.getElementById('a-usuario');
-  const ar = document.getElementById('a-rutina');
-  const curU = au.value;
-  const curR = ar.value;
+// ════════════════════════════════════════════════════
+async function populateSelects() {
+  const us = await getDocs(collection(db, COL_USERS));
+  const rs = await getDocs(collection(db, COL_ROUTINES));
+  const au = document.getElementById("a-usuario");
+  const ar = document.getElementById("a-rutina");
+  const curU = au.value; const curR = ar.value;
   au.innerHTML = '<option value="">Seleccionar usuario...</option>' +
-    us.map(u => `<option value="${u.nombre}" ${u.nombre === curU ? 'selected' : ''}>${u.nombre}</option>`).join('');
+    us.docs.map(d => `<option value="${d.data().nombre}" ${d.data().nombre===curU?"selected":""}>${d.data().nombre}</option>`).join("");
   ar.innerHTML = '<option value="">Seleccionar rutina...</option>' +
-    rs.map(r => `<option value="${r.nombre}" ${r.nombre === curR ? 'selected' : ''}>${r.nombre} — ${r.dia} ${r.hora}</option>`).join('');
+    rs.docs.map(d => `<option value="${d.data().nombre}" ${d.data().nombre===curR?"selected":""}>${d.data().nombre} — ${d.data().dia} ${d.data().hora}</option>`).join("");
 }
+window.populateSelects = populateSelects;
 
-function saveAttendance() {
-  const u = document.getElementById('a-usuario').value;
-  const r = document.getElementById('a-rutina').value;
-  const f = document.getElementById('a-fecha').value;
-  if (!u || !r || !f) { toast('⚠️ Usuario, rutina y fecha son requeridos'); return; }
-  const att = DB.get('attendance');
-  att.push({ id: Date.now(), usuario: u, rutina: r, fecha: f, obs: document.getElementById('a-obs').value });
-  DB.set('attendance', att);
-  document.getElementById('a-obs').value = '';
-  renderAttendance(); updateStats(); toast('✅ Asistencia registrada');
-}
+window.saveAttendance = async function() {
+  const u = document.getElementById("a-usuario").value;
+  const r = document.getElementById("a-rutina").value;
+  const f = document.getElementById("a-fecha").value;
+  if (!u || !r || !f) { toast("⚠️ Usuario, rutina y fecha son requeridos"); return; }
+  try {
+    await addDoc(collection(db, COL_ATTENDANCE), {
+      usuario: u, rutina: r, fecha: f,
+      obs:      document.getElementById("a-obs").value,
+      creadoEn: new Date().toISOString(),
+    });
+    document.getElementById("a-obs").value = "";
+    toast("✅ Asistencia registrada");
+    loadAttendance();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
 
-function deleteAttendance(id) {
-  if (!confirm('¿Eliminar este registro?')) return;
-  DB.set('attendance', DB.get('attendance').filter(a => a.id !== id));
-  renderAttendance(); updateStats(); toast('🗑️ Registro eliminado');
-}
+window.deleteAttendance = async function(id) {
+  if (!confirm("¿Eliminar este registro?")) return;
+  try {
+    await deleteDoc(doc(db, COL_ATTENDANCE, id));
+    toast("🗑️ Registro eliminado");
+    loadAttendance();
+  } catch(e) { toast("❌ Error: " + e.message); }
+};
 
-function renderAttendance() {
-  const fd  = document.getElementById('filterDate').value;
-  let att   = DB.get('attendance');
-  if (fd) att = att.filter(a => a.fecha === fd);
-  const tb  = document.getElementById('attendanceTable');
-  tb.innerHTML = att.length
-    ? [...att].reverse().map(a => `
+async function loadAttendance() {
+  const fd   = document.getElementById("filterDate").value;
+  const snap = await getDocs(query(collection(db, COL_ATTENDANCE), orderBy("creadoEn", "desc")));
+  let list   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (fd) list = list.filter(a => a.fecha === fd);
+  document.getElementById("attendanceTable").innerHTML = list.length
+    ? list.map(a => `
         <tr>
           <td><strong>${a.usuario}</strong></td>
           <td>${a.rutina}</td>
           <td>${a.fecha}</td>
-          <td>${a.obs || '—'}</td>
-          <td><button class="btn-del" onclick="deleteAttendance(${a.id})">Eliminar</button></td>
-        </tr>`).join('')
-    : '<tr><td colspan="5" style="text-align:center;opacity:0.4;padding:2rem;">Sin registros de asistencia</td></tr>';
+          <td>${a.obs || "—"}</td>
+          <td><button class="btn-del" onclick="deleteAttendance('${a.id}')">Eliminar</button></td>
+        </tr>`).join("")
+    : `<tr><td colspan="5" style="text-align:center;opacity:0.4;padding:2rem;">Sin registros de asistencia</td></tr>`;
 }
+window.loadAttendance = loadAttendance;
 
-// ── Init ──
-document.getElementById('u-fecha').value = new Date().toISOString().slice(0, 10);
-document.getElementById('a-fecha').value = new Date().toISOString().slice(0, 10);
-renderUsers();
-renderRoutines();
-renderAttendance();
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+document.getElementById("u-fecha").value = new Date().toISOString().slice(0, 10);
+document.getElementById("a-fecha").value = new Date().toISOString().slice(0, 10);
+loadUsers();
+loadRoutines();
+loadAttendance();
 updateStats();
