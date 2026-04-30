@@ -91,10 +91,10 @@ function updateNavBar() {
   if (currentUser) {
     if (currentUser.rol === "admin") {
       navActions.innerHTML = `
-        <span style="font-size:0.82rem;color:var(--navy);opacity:0.7">👑 Admin</span>
-        <button class="nav-btn" onclick="openAdminPanel()">Panel Admin</button>
-        <button class="nav-btn" style="background:transparent;color:var(--navy);border:1.5px solid var(--navy)" onclick="logout()">Salir</button>`;
-    } else {
+        <span style="font-size:0.82rem;color:var(--navy);opacity:0.7;margin-right:0.5rem">👑 Admin</span>
+        <button class="nav-btn" onclick="openAdminPanel()" style="margin-right:0.5rem">Panel Admin</button>
+        <button class="nav-btn" onclick="logout()" style="background:#dc2626;border:none">Salir</button>`;
+     else {
       navActions.innerHTML = `
         <span style="font-size:0.82rem;color:var(--navy);opacity:0.7">Hola, ${currentUser.nombre.split(" ")[0]} 👋</span>
         <button class="nav-btn" onclick="openUserPanel()">Mi Perfil</button>
